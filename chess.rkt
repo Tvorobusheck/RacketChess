@@ -15,15 +15,6 @@
 (define height (* 8 sq-size))
 
 
-;;; Модуль ускорения при нажатии на кнопку "вперед".
-(define key-accel 2.0)
-
-;;; Модуль угловой скорости при нажатии на кнопки поворота.
-(define key-ω (/ pi 50))
-
-;;; Множитель для гашения скорости.
-(define damp 0.9)
-
 ;;; Состояние "мира".
 
 ;;;; Доска реализована в виде(кроме отрисовки пустой доски)
@@ -87,21 +78,253 @@
     (figure 4 0 0 6)
     (figure 3 7 1 6))))
 (define world0 (world -1 -1 -1 -1 figures0 0))
-(define (find-figure w x y col)
+(define (find-figure figures x y col)
   (filter
    (lambda (cur)
      (and (= (figure-x cur) x)
           (= (figure-y cur) y)
           (= (figure-color cur) col)))
-   (world-figures w)))
-(define (find-figure-bytype w type col)
+   figures))
+(define (remove-figure figures x y)
+  (filter
+   (lambda (cur)
+     (not (and (= (figure-x cur) x)
+          (= (figure-y cur) y))))
+   figures))
+(define (add-figure fig figures)
+  (cons fig figures))
+(define (move-figure figures fig x y)
+  (add-figure
+   (figure x y (figure-color fig) (figure-type fig))
+   (remove-figure
+   (remove-figure figures (figure-x fig) (figure-y fig))
+   x y)))
+(define (find-figure-bytype figures type col)
   (filter
    (lambda (cur)
      (and (= (figure-type cur) type)
           (= (figure-color cur) col)))
-   (world-figures w)))
+   figures))
 (define (isblack? x y)
   (even?  (+ x y)))
+(define (signum num)
+  (cond
+    [(> num 0) 1]
+    [(< num 0) -1]
+    [(= num 0) 0]
+    ))
+(define (invert-color color)
+  (if (= color 1)
+      0
+      1))
+;; Возможно ли сходить фигурой в x y без учета шахов и матов
+(define (placeble? figures fig x y)
+  (cond
+    [(not (empty? (find-figure
+                   figures
+                   x y
+                   (figure-color fig)))) #f]
+    ;; Пешка
+    [(= (figure-type fig) 1)
+     ;;Белые
+     (if (even? (figure-color fig))
+         (cond
+           ;; Сходить пешкой прямо
+           [(and (= y (add1 (figure-y fig))) (= x (figure-x fig)))
+            (empty? (append
+                     (find-figure figures x y 0)
+                     (find-figure figures x y 1)))]
+           ;; Сходить пешкой прямо на 2
+           [(and (= 1 (figure-y fig))
+                 (= y (+ 2 (figure-y fig)))
+                 (= x (figure-x fig)))
+            (empty? (append
+                     (find-figure figures x y 0)
+                     (find-figure figures x y 1)))]
+           ;; Сходить пешкой наискосок
+           [(and (= y (add1 (figure-y fig)))
+                 (or (= x (add1 (figure-x fig)))
+                     (= x (sub1 (figure-x fig)))))
+            (not (empty? (find-figure figures x y 1)))]
+           [else #f])
+         (cond
+           ;; Сходить пешкой прямо
+           [(and (= y (sub1 (figure-y fig))) (= x (figure-x fig)))
+            (empty? (append
+                     (find-figure figures x y 0)
+                     (find-figure figures x y 1)))]
+           ;; Сходить пешкой прямо на 2
+           [(and (= 6 (figure-y fig))
+                 (= y (- (figure-y fig) 2))
+                 (= x (figure-x fig)))
+            (empty? (append
+                     (find-figure figures x y 0)
+                     (find-figure figures x y 1)))]
+           ;; Сходить пешкой наискосок
+           [(and (= y (sub1 (figure-y fig)))
+                 (or (= x (add1 (figure-x fig)))
+                     (= x (sub1 (figure-x fig)))))
+            (not (empty? (find-figure figures x y 0)))]
+           [else #f])
+         )]
+    ;;Конь
+    [(= (figure-type fig) 2)
+     (= 5 (+ (* (- x (figure-x fig)) (- x (figure-x fig)))
+             (* (- y (figure-y fig)) (- y (figure-y fig)))))]
+    ;;Слон
+    [(and (= (figure-type fig) 3)
+          (= (abs (- x (figure-x fig)))
+             (abs (- y (figure-y fig)))))
+       (if (= (abs (- x (figure-x fig))) 1)
+           #t
+           (if (empty? (find-figure
+                   figures
+                   (+ x (signum (- (figure-x fig) x)))
+                   (+ y (signum (- (figure-y fig) y)))
+                   (invert-color (figure-color fig))))
+               (placeble? figures
+                          fig
+                          (+ x (signum (- (figure-x fig) x)))
+                          (+ y (signum (- (figure-y fig) y))))
+               #f))]
+    ;;Ладья
+    [(and (= (figure-type fig) 4)
+          (or (= x (figure-x fig))
+              (= y (figure-y fig))))
+       (if (or (= (abs (- x (figure-x fig))) 1)
+               (= (abs (- y (figure-y fig))) 1))
+           #t
+           (if (empty? (find-figure
+                   figures
+                   (+ x (signum (- (figure-x fig) x)))
+                   (+ y (signum (- (figure-y fig) y)))
+                   (invert-color (figure-color fig))))
+               (placeble? figures
+                          fig
+                          (+ x (signum (- (figure-x fig) x)))
+                          (+ y (signum (- (figure-y fig) y))))
+               #f))]
+    ;;Ферзь
+    [(and (= (figure-type fig) 5)
+          (or (= (abs (- x (figure-x fig)))
+                 (abs (- y (figure-y fig))))
+              (or (= x (figure-x fig))
+                  (= y (figure-y fig)))))
+       (if (or (= (abs (- x (figure-x fig))) 1)
+               (= (abs (- y (figure-y fig))) 1))
+           #t
+           (if (empty? (find-figure
+                   figures
+                   (+ x (signum (- (figure-x fig) x)))
+                   (+ y (signum (- (figure-y fig) y)))
+                   (invert-color (figure-color fig))))
+               (placeble? figures
+                          fig
+                          (+ x (signum (- (figure-x fig) x)))
+                          (+ y (signum (- (figure-y fig) y))))
+               #f))]
+    ;;Король
+    [(and (= (figure-type fig) 6)
+          (<= (abs (- x (figure-x fig))) 1)
+          (<= (abs (- y (figure-y fig))) 1))
+       #t]
+    [else #f]))
+(define (check? figures color)
+  (let ([king (car (find-figure-bytype
+               figures
+               6
+               color))])
+    (ormap
+     (lambda (cur)
+       (and (= (figure-color cur) (invert-color (figure-color king)))
+            (placeble? figures cur (figure-x king) (figure-y king))))
+     figures)))
+(define (movable? figures fig x y color)
+  (and (not (check? (move-figure figures fig x y) color))
+       (placeble? figures fig x y)))
+(define (checkmate? figures color)
+  (not (for/first ([fig figures]
+              [x (range 8)]
+              [y (range 8)]
+              #:when (movable? figures fig x y color))
+    #t)))
+(define (try-to-takemove ws x y)
+  (cond [(movable?
+       (world-figures ws)
+       (car (find-figure
+             (world-figures ws)
+             (world-selx ws)
+             (world-sely ws)
+             (modulo (world-number-of-move ws) 2)))
+       (pix->x x) (pix->y y)
+       (modulo (world-number-of-move ws) 2))
+      (world
+       -1 -1
+       -1 -1
+       (move-figure
+        (world-figures ws)
+        (car (find-figure
+              (world-figures ws)
+              (world-selx ws)
+              (world-sely ws)
+              (modulo (world-number-of-move ws) 2)))
+        (pix->x x)
+        (pix->y y))
+       (add1 (world-number-of-move ws)))]
+      [else (world
+       (pix->x x) (pix->y y)
+       (if (empty? (find-figure
+             (world-figures ws)
+             (pix->x x)
+             (pix->y y)
+             (modulo (world-number-of-move ws) 2)))
+           (world-selx ws)
+           (pix->x x)) 
+       (if (empty? (find-figure
+             (world-figures ws)
+             (pix->x x)
+             (pix->y y)
+             (modulo (world-number-of-move ws) 2)))
+           (world-sely ws)
+           (pix->y y))
+       (world-figures ws)
+       (world-number-of-move ws))]))
+;; Обработчик мыши
+(define (mouse-handler ws x y event)
+  (if (and (string=? event "button-down")
+           (not (checkmate?
+                 (world-figures ws)
+                 (modulo (world-number-of-move ws) 2))))
+      (if (or (= (world-selx ws) -1)
+              (= (world-sely ws) -1))
+          (world (pix->x x) (pix->y y)
+                 (if (empty? (find-figure
+                              (world-figures ws)
+                              (pix->x x)
+                              (pix->y y)
+                              (modulo (world-number-of-move ws) 2)))
+                     (world-selx ws)
+                     (figure-x (car (find-figure
+                                     (world-figures ws)
+                                     (pix->x x)
+                                     (pix->y y)
+                                     (modulo (world-number-of-move ws) 2)))))
+                 (if (empty? (find-figure
+                              (world-figures ws)
+                              (pix->x x)
+                              (pix->y y)
+                              (modulo (world-number-of-move ws) 2)))
+                     (world-sely ws)
+                     (figure-y (car (find-figure
+                                 (world-figures ws)
+                                 (pix->x x)
+                                 (pix->y y)
+                                 (modulo (world-number-of-move ws) 2)))))
+                 (world-figures ws)
+                 (world-number-of-move ws))
+          (try-to-takemove ws x y))
+          ws
+          ))
 (define (dsq x y)
   (rectangle
    sq-size
@@ -173,7 +396,11 @@
    (draw-empty-board 8)
    (world-figures w)))
 (define (draw w)
-  (let ([board 
+  (if (checkmate?
+       (world-figures w)
+       (modulo (world-number-of-move w) 2))
+      (rectangle width height 'solid 'green)
+      (let ([board 
          (if
           (or (negative? (world-x w))
               (negative? (world-y w)))
@@ -183,7 +410,7 @@
          (rectangle sq-size sq-size 'outline 'green)
          (x->pix (world-x w))
          (y->pix (world-y w))
-         ;;Доска
+         ;; Доска
          (draw-board w)))])
     (if (or (negative?
              (world-selx w))
@@ -193,46 +420,7 @@
         (place-image
          (rectangle sq-size sq-size 'outline 'red)
          (x->pix (world-selx w)) (y->pix (world-sely w))
-         board))))
-;; Возможно ли сходить фигурой в x y без учета шахов и матов
-;(define (move? ws fig x y)
-;  (cond
-;    [(= (figure-type fig) 1)
-;     (if (even? (figure-color fig))
-;         (cond
-;           ]
-;    [else #f]))
-
-;; Обработчик мыши
-(define (mouse-handler ws x y event)
-  (if (string=? event "button-down")
-      (world (pix->x x) (pix->y y)
-             (if (empty? (find-figure
-                          ws
-                          (pix->x x)
-                          (pix->y y)
-                          (modulo (world-number-of-move ws) 2)))
-                 (world-selx ws)
-                 (figure-x (car (find-figure
-                                 ws
-                                 (pix->x x)
-                                 (pix->y y)
-                                 (modulo (world-number-of-move ws) 2)))))
-             (if (empty? (find-figure
-                          ws
-                          (pix->x x)
-                          (pix->y y)
-                          (modulo (world-number-of-move ws) 2)))
-                 (world-sely ws)
-                 (figure-y (car (find-figure
-                                 ws
-                                 (pix->x x)
-                                 (pix->y y)
-                                 (modulo (world-number-of-move ws) 2)))))
-             (world-figures ws)
-             (world-number-of-move ws))
-      ws
-      ))
+         board)))))
 (define (start)
   (big-bang world0
             (on-mouse mouse-handler)
