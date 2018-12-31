@@ -230,6 +230,11 @@
        #t]
     [else #f]))
 (define (check? figures color)
+  (if (empty? (find-figure-bytype
+               figures
+               6
+               color))
+      #f
   (let ([king (car (find-figure-bytype
                figures
                6
@@ -238,12 +243,13 @@
      (lambda (cur)
        (and (= (figure-color cur) (invert-color (figure-color king)))
             (placeble? figures cur (figure-x king) (figure-y king))))
-     figures)))
+     figures))))
 (define (movable? figures fig x y color)
-  (and (not (check? (move-figure figures fig x y) color))
+  (and (= color (figure-color fig))
+       (not (check? (move-figure figures fig x y) color))
        (placeble? figures fig x y)))
 (define (checkmate? figures color)
-  (not (for/first ([fig figures]
+  (not (for*/first ([fig figures]
               [x (range 8)]
               [y (range 8)]
               #:when (movable? figures fig x y color))
@@ -295,7 +301,7 @@
            (not (checkmate?
                  (world-figures ws)
                  (modulo (world-number-of-move ws) 2))))
-      (if (or (= (world-selx ws) -1)
+           (if (or (= (world-selx ws) -1)
               (= (world-sely ws) -1))
           (world (pix->x x) (pix->y y)
                  (if (empty? (find-figure
@@ -395,11 +401,13 @@
       prev))
    (draw-empty-board 8)
    (world-figures w)))
+(define (win-message color)
+   (rectangle width height 'solid 'green))
 (define (draw w)
-  (if (checkmate?
-       (world-figures w)
-       (modulo (world-number-of-move w) 2))
-      (rectangle width height 'solid 'green)
+  (if (checkmate? (world-figures w)
+                  (modulo (world-number-of-move w) 2))
+      (win-message (invert-color
+                    (modulo (world-number-of-move w) 2)))
       (let ([board 
          (if
           (or (negative? (world-x w))
