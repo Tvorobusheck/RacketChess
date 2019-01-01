@@ -78,6 +78,21 @@
     (figure 4 0 0 6)
     (figure 3 7 1 6))))
 ;; Расстановка для мата в 2 хода
+(define drawTEST
+  
+ (list
+  (figure 3 2 0 6)
+  (figure 5 7 1 6)
+  (figure 4 0 0 4)
+  (figure 0 6 0 4)
+  (figure 7 6 0 1)
+  (figure 0 5 0 2)
+  (figure 2 3 0 1)
+  (figure 6 2 0 1)
+  (figure 5 5 0 3)
+  (figure 0 1 0 1)
+  (figure 2 1 0 1)
+  (figure 5 6 1 1)))
 (define figuresTEST
   (append
    (list
@@ -165,6 +180,7 @@
                  (= y (+ 2 (figure-y fig)))
                  (= x (figure-x fig)))
             (empty? (append
+                     (find-figure figures x (sub1 y) 3)
                      (find-figure figures x y 0)
                      (find-figure figures x y 1)))]
            ;; Сходить пешкой наискосок
@@ -184,6 +200,7 @@
                  (= y (- (figure-y fig) 2))
                  (= x (figure-x fig)))
             (empty? (append
+                     (find-figure figures x (add1 y) 3)
                      (find-figure figures x y 0)
                      (find-figure figures x y 1)))]
            ;; Сходить пешкой наискосок
@@ -281,7 +298,7 @@
               [x (range 8)]
               [y (range 8)]
               #:when (movable? figures fig x y color))
-         #t)))
+         (list fig x y color))))
 (define (checkmate? figures color)
   (and (check? figures color)
        (pat? figures color)))
@@ -815,3 +832,4 @@
   (big-bang world0
             (on-mouse mouse-handler)
            (on-draw draw)))
+(start)
