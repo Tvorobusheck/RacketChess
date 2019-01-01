@@ -271,12 +271,17 @@
   (and (= color (figure-color fig))
        (not (check? (move-figure figures fig x y) color))
        (placeble? figures fig x y)))
-(define (checkmate? figures color)
-  (not (for*/first ([fig figures]
+(define (pat? figures color)
+  (not (for*/first ([fig
+                     (filter (lambda (fig) (= (figure-color fig) color))
+                               figures)]
               [x (range 8)]
               [y (range 8)]
               #:when (movable? figures fig x y color))
          #t)))
+(define (checkmate? figures color)
+  (and (check? figures color)
+       (pat? figures color)))
 (define (castling? figures caslfigs fig x y)
   (and (= (figure-type fig) 6)
        (not (empty? (find-figure
@@ -370,7 +375,6 @@
                                        1 y
                                        3)))))))))))
 (define (castling-possible? figures caslfigs fig x y color)
-  (begin (display caslfigs)
   (and (castling? figures caslfigs fig x y)
        (not (check? figures color))
        ;; Поле которое минует король тоже не должно биться
@@ -380,7 +384,7 @@
                      (+ (figure-x fig) (signum (- x (figure-x fig))))
                      y)
                     color))
-       (not (check? (move-figure figures fig x y) color)))))
+       (not (check? (move-figure figures fig x y) color))))
 (define (take-castling figures king x y)
   (if (zero? (figure-color king))
       ;; Белые
@@ -525,10 +529,7 @@
                (world-number-of-move ws))]))
 ;; Обработчик мыши
 (define (mouse-handler ws x y event)
-  (if (and (string=? event "button-down")
-           (not (checkmate?
-                 (world-figures ws)
-                 (modulo (world-number-of-move ws) 2))))
+  (if (string=? event "button-down")
            (if (or (= (world-selx ws) -1)
               (= (world-sely ws) -1))
           (world (pix->x x) (pix->y y)
@@ -631,23 +632,19 @@
    (world-figures w)))
 (define (win-message color)
    (rectangle width height 'solid 'green))
-(define (draw w)
-  (if (checkmate? (world-figures w)
-                  (modulo (world-number-of-move w) 2))
-      (win-message (invert-color
-                    (modulo (world-number-of-move w) 2)))
-      (let ([board 
+(define (draw-game w)
+  (let ([board 
          (if
           (or (negative? (world-x w))
               (negative? (world-y w)))
           (draw-board w)
           (place-image
-         ;; Выбранная клетка
-         (rectangle sq-size sq-size 'outline 'green)
-         (x->pix (world-x w))
-         (y->pix (world-y w))
-         ;; Доска
-         (draw-board w)))])
+           ;; Выбранная клетка
+           (rectangle sq-size sq-size 'outline 'green)
+           (x->pix (world-x w))
+           (y->pix (world-y w))
+           ;; Доска
+           (draw-board w)))])
     (if (or (negative?
              (world-selx w))
             (negative?
@@ -656,7 +653,29 @@
         (place-image
          (rectangle sq-size sq-size 'outline 'red)
          (x->pix (world-selx w)) (y->pix (world-sely w))
-         board)))))
+         board))))
+(define (draw-message txt)
+  (place-image
+   (text txt sq-size 'black)
+  (/ width 2) (/ sq-size 2)
+  (rectangle width sq-size 'solid 'white)))
+(define (draw ws)
+  (place-image
+   (cond
+     [(checkmate?
+       (world-figures ws)
+       (modulo (world-number-of-move ws) 2))
+      (draw-message
+       (if (even? (world-number-of-move ws))
+           "Black win!"
+           "White win!"))]
+     [(pat?
+       (world-figures ws)
+       (modulo (world-number-of-move ws) 2))
+      (draw-message "Draw")]
+     [else empty-image])
+  (/ width 2) (/ height 2)
+  (draw-game ws)))
 (define (start)
   (big-bang world0
             (on-mouse mouse-handler)
