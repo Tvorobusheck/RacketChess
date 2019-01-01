@@ -14,7 +14,6 @@
 (define width (* 8 sq-size))
 (define height (* 8 sq-size))
 
-
 ;;; Состояние "мира".
 
 ;;;; Доска реализована в виде(кроме отрисовки пустой доски)
@@ -33,6 +32,7 @@
   (x y        ; выбранная клетка
      selx sely ; выбранная фигура
      figures ; фигуры
+     caslfigs ; фигуры которые могут рокироваться
      number-of-move) ; номер хода
   #:transparent)
 
@@ -77,13 +77,36 @@
    (list
     (figure 4 0 0 6)
     (figure 3 7 1 6))))
-(define world0 (world -1 -1 -1 -1 figures0 0))
+;; Расстановка для мата в 2 хода
+(define figuresCM
+  (append
+   (list
+    (figure 0 0 0 4)
+    (figure 7 0 0 4))
+   (list
+    (figure 0 7 1 4)
+    (figure 7 7 1 4))
+   (list
+    (figure 4 0 0 6)
+    (figure 3 7 1 6))))
+(define caslfigs0
+  (append
+   (list
+    (figure 0 0 0 4)
+    (figure 7 0 0 4)
+    (figure 0 7 1 4)
+    (figure 7 7 1 4))
+   (list
+    (figure 4 0 0 6)
+    (figure 3 7 1 6))))
+(define world0 (world -1 -1 -1 -1 figuresCM caslfigs0 0))
 (define (find-figure figures x y col)
   (filter
    (lambda (cur)
      (and (= (figure-x cur) x)
           (= (figure-y cur) y)
-          (= (figure-color cur) col)))
+          (or (= (figure-color cur) col)
+              (= col 3))))
    figures))
 (define (remove-figure figures x y)
   (filter
@@ -253,48 +276,253 @@
               [x (range 8)]
               [y (range 8)]
               #:when (movable? figures fig x y color))
-    #t)))
+         #t)))
+(define (castling? figures caslfigs fig x y)
+  (and (= (figure-type fig) 6)
+       (not (empty? (find-figure
+                     caslfigs
+                     (figure-x fig)
+                     (figure-y fig)
+                     (figure-color fig))))
+       (= (figure-y fig) y)
+       (= (abs (- (figure-x fig) x)) 2)
+       (if (= (figure-color fig) 0)
+           (and (= y 0)
+                (or
+                 ;; белые
+                 ;; рокировка вправо
+                 (and (> x 4)
+                      (let ([rook (find-figure
+                                   caslfigs
+                                   7 y
+                                   (figure-color fig))])
+                        (and (not (empty? rook))
+                             (= (figure-type (car rook)) 4)
+                             (empty? (append
+                                      (find-figure
+                                       figures
+                                       6 y
+                                       3)
+                                      (find-figure
+                                  figures
+                                  5 y
+                                  3))))))
+                 ;; рокировка влево
+                 (and (< x 4)
+                      (let ([rook (find-figure
+                                   caslfigs
+                                   0 y
+                                   (figure-color fig))])
+                        (and (not (empty? rook))
+                             (= (figure-type (car rook)) 4)
+                             (empty? (append
+                                      (find-figure
+                                       figures
+                                       3 y
+                                       3)
+                                      (find-figure
+                                       figures
+                                       2 y
+                                       3)
+                                      (find-figure
+                                       figures
+                                       1 y
+                                       3))))))))
+           (and (= y 7)
+                (or
+                 ;; черные
+                 ;; рокировка вправо
+                 (and (> x 3)
+                      (let ([rook (find-figure
+                                   caslfigs
+                                   7 y
+                                   (figure-color fig))])
+                        (and (not (empty? rook))
+                             (= (figure-type (car rook)) 4)
+                             (empty? (append
+                                      (find-figure
+                                       figures
+                                       6 y
+                                       3)
+                                 (find-figure
+                                  figures
+                                  5 y
+                                  3)
+                                 (find-figure
+                                  figures
+                                  4 y
+                                  3))))))
+                 ;; рокировка влево
+                 (and (< x 4)
+                      (let ([rook (find-figure
+                                   caslfigs
+                                   0 y
+                                   (figure-color fig))])
+                        (and (not (empty? rook))
+                             (= (figure-type (car rook)) 4)
+                             (empty? (append
+                                      (find-figure
+                                       figures
+                                       2 y
+                                       3)
+                                      (find-figure
+                                       figures
+                                       1 y
+                                       3)))))))))))
+(define (castling-possible? figures caslfigs fig x y color)
+  (begin (display caslfigs)
+  (and (castling? figures caslfigs fig x y)
+       (not (check? figures color))
+       ;; Поле которое минует король тоже не должно биться
+       (not (check? (move-figure
+                     figures
+                     fig
+                     (+ (figure-x fig) (signum (- x (figure-x fig))))
+                     y)
+                    color))
+       (not (check? (move-figure figures fig x y) color)))))
+(define (take-castling figures king x y)
+  (if (zero? (figure-color king))
+      ;; Белые
+      (if (> x 4)
+          ;; Вправо
+          (move-figure
+           (move-figure
+            figures
+            king
+            x y)
+           (car (find-figure
+                 figures
+                 7 0
+                 0))
+           5 0)
+          ;; Влево
+          (move-figure
+           (move-figure
+            figures
+            king
+            x y)
+           (car (find-figure
+                 figures
+                 0 0
+                 0))
+           3 0))
+      ;; Черные
+      (if (> x 3)
+          ;; Вправо
+          (move-figure
+           (move-figure
+            figures
+            king
+            x y)
+           (car (find-figure
+                 figures
+                 7 7
+                 1))
+           4 7)
+          ;; Влево
+          (move-figure
+           (move-figure
+            figures
+            king
+            x y)
+           (car (find-figure
+                 figures
+                 0 7
+                 1))
+           2 7))))
 (define (try-to-takemove ws x y)
   (cond [(movable?
-       (world-figures ws)
-       (car (find-figure
-             (world-figures ws)
-             (world-selx ws)
-             (world-sely ws)
-             (modulo (world-number-of-move ws) 2)))
-       (pix->x x) (pix->y y)
-       (modulo (world-number-of-move ws) 2))
-      (world
-       -1 -1
-       -1 -1
-       (move-figure
-        (world-figures ws)
-        (car (find-figure
-              (world-figures ws)
-              (world-selx ws)
-              (world-sely ws)
-              (modulo (world-number-of-move ws) 2)))
-        (pix->x x)
-        (pix->y y))
-       (add1 (world-number-of-move ws)))]
-      [else (world
-       (pix->x x) (pix->y y)
-       (if (empty? (find-figure
-             (world-figures ws)
-             (pix->x x)
-             (pix->y y)
-             (modulo (world-number-of-move ws) 2)))
-           (world-selx ws)
-           (pix->x x)) 
-       (if (empty? (find-figure
-             (world-figures ws)
-             (pix->x x)
-             (pix->y y)
-             (modulo (world-number-of-move ws) 2)))
-           (world-sely ws)
+          (world-figures ws)
+          (car (find-figure
+                (world-figures ws)
+                (world-selx ws)
+                (world-sely ws)
+                (modulo (world-number-of-move ws) 2)))
+          (pix->x x) (pix->y y)
+          (modulo (world-number-of-move ws) 2))
+         (world
+          -1 -1
+          -1 -1
+          (move-figure
+           (world-figures ws)
+           (car (find-figure
+                 (world-figures ws)
+                 (world-selx ws)
+                 (world-sely ws)
+                 (modulo (world-number-of-move ws) 2)))
+           (pix->x x)
            (pix->y y))
-       (world-figures ws)
-       (world-number-of-move ws))]))
+          (remove-figure
+           (remove-figure (world-caslfigs ws) 
+                          (figure-x
+                           (car (find-figure
+                                 (world-figures ws)
+                                 (world-selx ws)
+                                 (world-sely ws)
+                                 (modulo (world-number-of-move ws) 2)))) 
+                          (figure-y
+                           (car (find-figure
+                                 (world-figures ws)
+                                 (world-selx ws)
+                                 (world-sely ws)
+                                 (modulo (world-number-of-move ws) 2)))))
+           x y)
+          (add1 (world-number-of-move ws)))]
+        [(castling-possible?
+          (world-figures ws)
+          (world-caslfigs ws)
+          (car (find-figure
+                (world-figures ws)
+                (world-selx ws)
+                (world-sely ws)
+                (modulo (world-number-of-move ws) 2)))
+          (pix->x x) (pix->y y)
+          (modulo (world-number-of-move ws) 2))
+         (world
+          -1 -1
+          -1 -1
+          (take-castling
+           (world-figures ws)
+           (car (find-figure
+                (world-figures ws)
+                (world-selx ws)
+                (world-sely ws)
+                (modulo (world-number-of-move ws) 2)))
+           (pix->x x) (pix->y y))
+           (remove-figure (world-caslfigs ws) 
+                          (figure-x
+                          (car (find-figure
+                                (world-figures ws)
+                                (world-selx ws)
+                                (world-sely ws)
+                                (modulo (world-number-of-move ws) 2))))
+                          (figure-y
+                          (car (find-figure
+                                (world-figures ws)
+                                (world-selx ws)
+                                (world-sely ws)
+                                (modulo (world-number-of-move ws) 2)))))
+          (add1 (world-number-of-move ws)))]
+        [else (world
+               (pix->x x) (pix->y y)
+               (if (empty? (find-figure
+                            (world-figures ws)
+                            (pix->x x)
+                            (pix->y y)
+                            (modulo (world-number-of-move ws) 2)))
+                   (world-selx ws)
+                   (pix->x x)) 
+               (if (empty? (find-figure
+                            (world-figures ws)
+                            (pix->x x)
+                            (pix->y y)
+                            (modulo (world-number-of-move ws) 2)))
+                   (world-sely ws)
+                   (pix->y y))
+               (world-figures ws)
+               (world-caslfigs ws)
+               (world-number-of-move ws))]))
 ;; Обработчик мыши
 (define (mouse-handler ws x y event)
   (if (and (string=? event "button-down")
@@ -327,6 +555,7 @@
                                  (pix->y y)
                                  (modulo (world-number-of-move ws) 2)))))
                  (world-figures ws)
+                 (world-caslfigs ws)
                  (world-number-of-move ws))
           (try-to-takemove ws x y))
           ws
@@ -389,8 +618,7 @@
          (bitmap/file "images/black/Chess_qdt60.png")]
         [(= (figure-type fig) 6)
          (bitmap/file "images/black/Chess_kdt60.png")]
-        [else (rectangle sq-size sq-size 'solid 'red)])))
-    
+        [else (rectangle sq-size sq-size 'solid 'red)])))    
 (define (draw-board w)
   (foldr
    (lambda
