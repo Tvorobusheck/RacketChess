@@ -10,7 +10,8 @@
          2htdp/image)
 
 ;;; Размеры игрового пространства.
-(define sq-size 80)
+(define sq-size 60)
+
 (define width (* 8 sq-size))
 (define height (* 8 sq-size))
 
@@ -52,6 +53,7 @@
      color ; цвет
      type) ; тип
   #:transparent)
+
 ;;; Исходное состояние (ракета в центре в состоянии покоя).
 (define figures0
   (append
@@ -78,6 +80,7 @@
    (list
     (figure 4 0 0 6)
     (figure 3 7 1 6))))
+
 ;; Расстановка для тестов
 (define figuresTEST  
  (list
@@ -112,40 +115,49 @@
           (or (= (figure-color cur) col)
               (= col 3))))
    figures))
+
 (define (remove-figure figures x y)
   (filter
    (lambda (cur)
      (not (and (= (figure-x cur) x)
           (= (figure-y cur) y))))
    figures))
+
 (define (add-figure fig figures)
   (cons fig figures))
+
 (define (move-figure figures fig x y)
   (add-figure
    (figure x y (figure-color fig) (figure-type fig))
    (remove-figure
    (remove-figure figures (figure-x fig) (figure-y fig))
    x y)))
+
 (define (find-figure-bytype figures type col)
   (filter
    (lambda (cur)
      (and (= (figure-type cur) type)
           (= (figure-color cur) col)))
    figures))
+
 (define (isblack? x y)
   (even?  (+ x y)))
+
 (define (signum num)
   (cond
     [(> num 0) 1]
     [(< num 0) -1]
     [(= num 0) 0]
     ))
+
 (define (invert-color color)
   (if (= color 1)
       0
       1))
+
 (define (get-cur-col ws)
   (modulo (length (world-prev-figures ws)) 2))
+
 ;; Возможно ли сходить фигурой в x y без учета шахов и матов
 (define (placeble? figures fig x y)
   (cond
@@ -260,6 +272,7 @@
           (<= (abs (- y (figure-y fig))) 1))
        #t]
     [else #f]))
+
 (define (check? figures color)
   (if (empty? (find-figure-bytype
                figures
@@ -275,10 +288,12 @@
        (and (= (figure-color cur) (invert-color (figure-color king)))
             (placeble? figures cur (figure-x king) (figure-y king))))
      figures))))
+
 (define (movable? figures fig x y color)
   (and (= color (figure-color fig))
        (not (check? (move-figure figures fig x y) color))
        (placeble? figures fig x y)))
+
 (define (pat? figures color)
   (not (for*/first ([fig
                      (filter (lambda (fig) (= (figure-color fig) color))
@@ -287,9 +302,11 @@
               [y (range 8)]
               #:when (movable? figures fig x y color))
          (list fig x y color))))
+
 (define (checkmate? figures color)
   (and (check? figures color)
        (pat? figures color)))
+
 ;; Пешка дошла до противоположного края доскиx
 (define (enpassant? figures color)
   (not (empty? (filter
@@ -303,6 +320,7 @@
                             (= 1 (figure-color cur))
                             (= 0 (figure-y cur))))))
                 figures))))
+
 ;; Превратить крайнюю пешку в ферзя
 (define (turn-enpassant figures color type)
   (let ([pawn (car (filter
@@ -322,6 +340,7 @@
              (figure-color pawn)
              type)
      (remove-figure figures (figure-x pawn) (figure-y pawn)))))
+
 ;; Рокировка без учета шахов
 (define (castling? figures caslfigs fig x y)
   (and (= (figure-type fig) 6)
@@ -415,6 +434,7 @@
                                        figures
                                        1 y
                                        3)))))))))))
+
 (define (castling-possible? figures caslfigs fig x y color)
   (and (castling? figures caslfigs fig x y)
        (not (check? figures color))
@@ -426,6 +446,7 @@
                      y)
                     color))
        (not (check? (move-figure figures fig x y) color))))
+
 (define (take-castling figures king x y)
   (if (zero? (figure-color king))
       ;; Белые
@@ -476,6 +497,7 @@
                  0 7
                  1))
            2 7))))
+
 ;; Обработчик ходов
 (define (try-to-takemove ws x y)
   ;; Пешка идет до края
@@ -636,6 +658,7 @@
                (world-caslfigs ws)
                (world-prev-figures ws)
                (world-prev-caslfigs ws))]))
+
 ;; Обработчик мыши
 (define (mouse-handler ws x y event)
   (if (string=? event "button-down")
@@ -723,34 +746,44 @@
        (cdr (world-prev-figures w))
        (cdr (world-prev-caslfigs w)))
       w))
+
 (define (dsq x y)
   (rectangle
    sq-size
    sq-size
    "solid"
    (if (isblack? x y) "brown" "gray")))
+
 (define (drf base)
   (foldr (lambda (pos prev)
            (above prev (dsq (car pos) (cdr pos))))
          empty-image
          base))
 
+
 (define (drs base)
   (foldr (lambda (cur res) (beside cur res))
          empty-image
          base))
-(define (draw-x y) (drf (map (lambda (x) (cons y x)) (range 8))))
+
+(define (draw-x y)
+  (drf (map (lambda (x) (cons y x)) (range 8))))
+
 (define (draw-empty-board k)
   (drs (map draw-x (range 8))))
 
 (define (pix->x x)
   (quotient x sq-size))
+
 (define (pix->y y)
   (quotient (- height y) sq-size))
+
 (define (x->pix x)
   (+ (/ sq-size 2) (* sq-size x)))
+
 (define (y->pix y)
   (- height (+ (/ sq-size 2) (* sq-size y))))
+
 (define (draw-figure fig)
   (if (zero? (figure-color fig))
       (cond
@@ -782,6 +815,7 @@
         [(= (figure-type fig) 6)
          (bitmap/file "images/black/Chess_kdt60.png")]
         [else (rectangle sq-size sq-size 'solid 'red)])))    
+
 (define (draw-board w)
   (foldr
    (lambda
@@ -792,8 +826,10 @@
       prev))
    (draw-empty-board 8)
    (world-figures w)))
+
 (define (win-message color)
    (rectangle width height 'solid 'green))
+
 (define (draw-game w)
   (let ([board 
          (if
@@ -816,11 +852,13 @@
          (rectangle sq-size sq-size 'outline 'red)
          (x->pix (world-selx w)) (y->pix (world-sely w))
          board))))
+
 (define (draw-message txt)
   (place-image
    (text txt sq-size 'black)
   (/ width 2) (/ sq-size 2)
   (rectangle width sq-size 'solid 'white)))
+
 (define (draw ws)
   (place-image
    (cond
@@ -845,6 +883,7 @@
      [else empty-image])
   (/ width 2) (/ height 2)
   (draw-game ws)))
+
 (define (start)
   (big-bang world0
             (on-mouse mouse-handler)
