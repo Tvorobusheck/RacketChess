@@ -105,7 +105,7 @@
     (figure 3 7 1 6))))
 
 (define world0
-  (world -1 -1 -1 -1 figuresTEST caslfigs0 '() '()))
+  (world -1 -1 -1 -1 figures0 caslfigs0 '() '()))
 
 (define (find-figure figures x y col)
   (filter
