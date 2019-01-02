@@ -10,7 +10,7 @@
          2htdp/image)
 
 ;;; Размеры игрового пространства.
-(define sq-size 60)
+(define sq-size 80)
 (define width (* 8 sq-size))
 (define height (* 8 sq-size))
 
@@ -33,7 +33,8 @@
      selx sely ; выбранная фигура
      figures ; фигуры
      caslfigs ; фигуры которые могут рокироваться
-     number-of-move) ; номер хода
+     prev-figures ; прошлые расстановки фигур
+     prev-caslfigs) ; прошлые фигуры для рокировки
   #:transparent)
 
 ;;;; Типы(type) фигур
@@ -77,36 +78,18 @@
    (list
     (figure 4 0 0 6)
     (figure 3 7 1 6))))
-;; Расстановка для мата в 2 хода
-(define drawTEST
-  
+;; Расстановка для тестов
+(define figuresTEST  
  (list
-  (figure 3 2 0 6)
-  (figure 5 7 1 6)
-  (figure 4 0 0 4)
-  (figure 0 6 0 4)
-  (figure 7 6 0 1)
-  (figure 0 5 0 2)
-  (figure 2 3 0 1)
-  (figure 6 2 0 1)
-  (figure 5 5 0 3)
-  (figure 0 1 0 1)
+  (figure 0 0 0 4)
+  (figure 7 0 0 4)
+  (figure 0 7 1 4)
+  (figure 7 7 1 4)
+  (figure 4 0 0 6)
+  (figure 3 7 1 6)
   (figure 2 1 0 1)
   (figure 5 6 1 1)))
-(define figuresTEST
-  (append
-   (list
-    (figure 6 1 0 1)
-    (figure 1 6 1 1))
-   (list
-    (figure 0 0 0 4)
-    (figure 7 0 0 4))
-   (list
-    (figure 0 7 1 4)
-    (figure 7 7 1 4))
-   (list
-    (figure 4 0 0 6)
-    (figure 3 7 1 6))))
+
 (define caslfigs0
   (append
    (list
@@ -117,7 +100,10 @@
    (list
     (figure 4 0 0 6)
     (figure 3 7 1 6))))
-(define world0 (world -1 -1 -1 -1 figures0 caslfigs0 0))
+
+(define world0
+  (world -1 -1 -1 -1 figuresTEST caslfigs0 '() '()))
+
 (define (find-figure figures x y col)
   (filter
    (lambda (cur)
@@ -158,6 +144,8 @@
   (if (= color 1)
       0
       1))
+(define (get-cur-col ws)
+  (modulo (length (world-prev-figures ws)) 2))
 ;; Возможно ли сходить фигурой в x y без учета шахов и матов
 (define (placeble? figures fig x y)
   (cond
@@ -490,18 +478,19 @@
            2 7))))
 ;; Обработчик ходов
 (define (try-to-takemove ws x y)
+  ;; Пешка идет до края
   (cond [(and (not (enpassant? 
                (world-figures ws)
-               (modulo (world-number-of-move ws) 2)))
+               (get-cur-col ws)))
               (movable?
                (world-figures ws)
                (car (find-figure
                      (world-figures ws)
                      (world-selx ws)
                      (world-sely ws)
-                     (modulo (world-number-of-move ws) 2)))
+                     (get-cur-col ws)))
                (pix->x x) (pix->y y)
-               (modulo (world-number-of-move ws) 2))
+               (get-cur-col ws))
               (enpassant? 
                (move-figure
                 (world-figures ws)
@@ -509,10 +498,10 @@
                       (world-figures ws)
                       (world-selx ws)
                       (world-sely ws)
-                      (modulo (world-number-of-move ws) 2)))
+                      (get-cur-col ws)))
                 (pix->x x)
                 (pix->y y))
-               (modulo (world-number-of-move ws) 2)))
+               (get-cur-col ws)))
          (world
           -1 -1
           -1 -1
@@ -522,7 +511,7 @@
                  (world-figures ws)
                  (world-selx ws)
                  (world-sely ws)
-                 (modulo (world-number-of-move ws) 2)))
+                 (get-cur-col ws)))
            (pix->x x)
            (pix->y y))
           (remove-figure
@@ -532,27 +521,31 @@
                                  (world-figures ws)
                                  (world-selx ws)
                                  (world-sely ws)
-                                 (modulo (world-number-of-move ws) 2)))) 
+                                 (get-cur-col ws)))) 
                           (figure-y
                            (car (find-figure
                                  (world-figures ws)
                                  (world-selx ws)
                                  (world-sely ws)
-                                 (modulo (world-number-of-move ws) 2)))))
+                                 (get-cur-col ws)))))
            x y)
-          (world-number-of-move ws))]
+          (cons (world-figures ws)
+                (cons (world-figures ws) (world-prev-figures ws)))
+          (cons (world-caslfigs ws)
+                (cons (world-caslfigs ws) (world-prev-caslfigs ws))))]
+        ;; Обычный ходx
         [(and (not (enpassant? 
                     (world-figures ws)
-                    (modulo (world-number-of-move ws) 2)))
+                    (get-cur-col ws)))
               (movable?
                (world-figures ws)
                (car (find-figure
                      (world-figures ws)
                      (world-selx ws)
                      (world-sely ws)
-                     (modulo (world-number-of-move ws) 2)))
+                     (get-cur-col ws)))
                (pix->x x) (pix->y y)
-               (modulo (world-number-of-move ws) 2)))
+               (get-cur-col ws)))
          (world
           -1 -1
           -1 -1
@@ -562,7 +555,7 @@
                  (world-figures ws)
                  (world-selx ws)
                  (world-sely ws)
-                 (modulo (world-number-of-move ws) 2)))
+                 (get-cur-col ws)))
            (pix->x x)
            (pix->y y))
           (remove-figure
@@ -572,18 +565,19 @@
                                  (world-figures ws)
                                  (world-selx ws)
                                  (world-sely ws)
-                                 (modulo (world-number-of-move ws) 2)))) 
+                                 (get-cur-col ws)))) 
                           (figure-y
                            (car (find-figure
                                  (world-figures ws)
                                  (world-selx ws)
                                  (world-sely ws)
-                                 (modulo (world-number-of-move ws) 2)))))
+                                 (get-cur-col ws)))))
            x y)
-          (add1 (world-number-of-move ws)))]
+          (cons (world-figures ws) (world-prev-figures ws))
+          (cons (world-caslfigs ws) (world-prev-caslfigs ws)))]
         [(and (not (enpassant? 
                     (world-figures ws)
-                    (modulo (world-number-of-move ws) 2)))
+                    (get-cur-col ws)))
               (castling-possible?
                (world-figures ws)
                (world-caslfigs ws)
@@ -591,9 +585,9 @@
                      (world-figures ws)
                      (world-selx ws)
                      (world-sely ws)
-                     (modulo (world-number-of-move ws) 2)))
+                     (get-cur-col ws)))
                (pix->x x) (pix->y y)
-               (modulo (world-number-of-move ws) 2)))
+               (get-cur-col ws)))
          (world
           -1 -1
           -1 -1
@@ -603,7 +597,7 @@
                 (world-figures ws)
                 (world-selx ws)
                 (world-sely ws)
-                (modulo (world-number-of-move ws) 2)))
+                (get-cur-col ws)))
            (pix->x x) (pix->y y))
            (remove-figure (world-caslfigs ws) 
                           (figure-x
@@ -611,101 +605,124 @@
                                 (world-figures ws)
                                 (world-selx ws)
                                 (world-sely ws)
-                                (modulo (world-number-of-move ws) 2))))
+                                (get-cur-col ws))))
                           (figure-y
                           (car (find-figure
                                 (world-figures ws)
                                 (world-selx ws)
                                 (world-sely ws)
-                                (modulo (world-number-of-move ws) 2)))))
-          (add1 (world-number-of-move ws)))]
+                                (get-cur-col ws)))))
+           (cons (world-figures ws)
+                 (world-prev-figures ws))
+           (cons (world-figures ws)
+                 (world-prev-caslfigs ws)))]
         [else (world
                (pix->x x) (pix->y y)
                (if (empty? (find-figure
                             (world-figures ws)
                             (pix->x x)
                             (pix->y y)
-                            (modulo (world-number-of-move ws) 2)))
+                            (get-cur-col ws)))
                    (world-selx ws)
                    (pix->x x)) 
                (if (empty? (find-figure
                             (world-figures ws)
                             (pix->x x)
                             (pix->y y)
-                            (modulo (world-number-of-move ws) 2)))
+                            (get-cur-col ws)))
                    (world-sely ws)
                    (pix->y y))
                (world-figures ws)
                (world-caslfigs ws)
-               (world-number-of-move ws))]))
+               (world-prev-figures ws)
+               (world-prev-caslfigs ws))]))
 ;; Обработчик мыши
 (define (mouse-handler ws x y event)
   (if (string=? event "button-down")
       (if (enpassant? (world-figures ws)
-                      (modulo (world-number-of-move ws) 2))
+                      (get-cur-col ws))
           (let ([figures (cond
                            [(<= (+ (/ height 2) sq-size)
                                 y
                                 (+ (/ height 2) (* 2 sq-size)))
                             (turn-enpassant (world-figures ws)
-                                            (modulo (world-number-of-move ws) 2)
+                                            (get-cur-col ws)
                                             5)]
                            [(<= (/ height 2)
                                 y
                                 (+ (/ height 2) sq-size))
                             (turn-enpassant (world-figures ws)
-                                            (modulo (world-number-of-move ws) 2)
+                                            (get-cur-col ws)
                                             4)]
                            [(>= (/ height 2)
                                 y
                                 (- (/ height 2) sq-size))
                             (turn-enpassant (world-figures ws)
-                                            (modulo (world-number-of-move ws) 2)
+                                            (get-cur-col ws)
                                             3)]
                            [(>= (- (/ height 2) sq-size)
                                 y
                                 (- (/ height 2) (* 2 sq-size)))
                             (turn-enpassant (world-figures ws)
-                                            (modulo (world-number-of-move ws) 2)
-                                            2)])])
-            (world
-             -1 -1
-             -1 -1
-             figures
-             (remove-figure (world-caslfigs ws) 
-                            (pix->x x) (pix->y y))
-             (add1 (world-number-of-move ws))))
-          (if (or (= (world-selx ws) -1)
-                  (= (world-sely ws) -1))
-              (world (pix->x x) (pix->y y)
-                     (if (empty? (find-figure
-                              (world-figures ws)
-                              (pix->x x)
-                              (pix->y y)
-                              (modulo (world-number-of-move ws) 2)))
-                     (world-selx ws)
-                     (figure-x (car (find-figure
-                                     (world-figures ws)
-                                     (pix->x x)
-                                     (pix->y y)
-                                     (modulo (world-number-of-move ws) 2)))))
-                 (if (empty? (find-figure
-                              (world-figures ws)
-                              (pix->x x)
-                              (pix->y y)
-                              (modulo (world-number-of-move ws) 2)))
-                     (world-sely ws)
-                     (figure-y (car (find-figure
-                                 (world-figures ws)
-                                 (pix->x x)
-                                 (pix->y y)
-                                 (modulo (world-number-of-move ws) 2)))))
-                 (world-figures ws)
-                 (world-caslfigs ws)
-                 (world-number-of-move ws))
-          (try-to-takemove ws x y)))
+                                            (get-cur-col ws)
+                                            2)]
+                           [else empty])])
+            (if (empty? figures)
+                ws
+                (world
+                 -1 -1
+                 -1 -1
+                 figures
+                 (remove-figure (world-caslfigs ws) 
+                                (pix->x x) (pix->y y))
+                 (cdr (world-prev-figures ws))
+                 (cdr (world-prev-caslfigs ws)))))
+            (if (or (= (world-selx ws) -1)
+                    (= (world-sely ws) -1))
+                (world (pix->x x) (pix->y y)
+                       (if (empty? (find-figure
+                                    (world-figures ws)
+                                    (pix->x x)
+                                    (pix->y y)
+                                    (get-cur-col ws)))
+                           (world-selx ws)
+                           (figure-x (car (find-figure
+                                           (world-figures ws)
+                                           (pix->x x)
+                                           (pix->y y)
+                                           (get-cur-col ws)))))
+                       (if (empty? (find-figure
+                                    (world-figures ws)
+                                    (pix->x x)
+                                    (pix->y y)
+                                    (get-cur-col ws)))
+                           (world-sely ws)
+                           (figure-y (car (find-figure
+                                           (world-figures ws)
+                                           (pix->x x)
+                                           (pix->y y)
+                                           (get-cur-col ws)))))
+                       (world-figures ws)
+                       (world-caslfigs ws)
+                       (world-prev-figures ws)
+                       (world-prev-caslfigs ws))
+                (try-to-takemove ws x y)))
           ws
           ))
+
+;; Обработчик клавиш
+(define (key-handler w k)
+  (if (and (key=? k "\b")
+           (not (enpassant? (world-figures w) (get-cur-col w)))
+           (not (empty? (world-prev-figures w))))
+      (world
+       -1 -1
+       -1 -1
+       (car (world-prev-figures w))
+       (car (world-prev-caslfigs w))
+       (cdr (world-prev-figures w))
+       (cdr (world-prev-caslfigs w)))
+      w))
 (define (dsq x y)
   (rectangle
    sq-size
@@ -809,18 +826,18 @@
    (cond
      [(checkmate?
        (world-figures ws)
-       (modulo (world-number-of-move ws) 2))
+       (get-cur-col ws))
       (draw-message
-       (if (even? (world-number-of-move ws))
+       (if (zero? (get-cur-col ws))
            "Black win!"
            "White win!"))]
      [(pat?
        (world-figures ws)
-       (modulo (world-number-of-move ws) 2))
+       (get-cur-col ws))
       (draw-message "Draw")]
      [(enpassant?
        (world-figures ws)
-       (modulo (world-number-of-move ws) 2))
+       (get-cur-col ws))
       (above (draw-message "Knight")
              (draw-message "Bishop")
              (draw-message "Rook")
@@ -831,5 +848,6 @@
 (define (start)
   (big-bang world0
             (on-mouse mouse-handler)
-           (on-draw draw)))
+            (on-key key-handler)
+            (on-draw draw)))
 (start)
