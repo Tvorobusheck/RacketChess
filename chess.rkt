@@ -10,7 +10,7 @@
          2htdp/image)
 
 ;;; Размеры игрового пространства.
-(define sq-size 60)
+(define sq-size 80)
 
 (define width (* 8 sq-size))
 (define height (* 8 sq-size))
@@ -105,7 +105,7 @@
     (figure 3 7 1 6))))
 
 (define world0
-  (world -1 -1 -1 -1 figures0 caslfigs0 '() '()))
+  (world -1 -1 -1 -1 figuresTEST caslfigs0 '() '()))
 
 (define (find-figure figures x y col)
   (filter
