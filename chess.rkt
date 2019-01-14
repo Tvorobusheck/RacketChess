@@ -106,7 +106,7 @@
     (figure 3 7 'black 'king))))
 
 (define world0
-  (world -1 -1 -1 -1 figuresTEST caslfigs0 '() '()))
+  (world -1 -1 -1 -1 figures0 caslfigs0 '() '()))
 
 (define (find-figure figures x y col)
   (for/first
