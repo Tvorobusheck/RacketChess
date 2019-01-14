@@ -106,16 +106,16 @@
     (figure 3 7 'black 'king))))
 
 (define world0
-  (world -1 -1 -1 -1 figures0 caslfigs0 '() '()))
+  (world -1 -1 -1 -1 figuresTEST caslfigs0 '() '()))
 
 (define (find-figure figures x y col)
-  (filter
-   (lambda (cur)
-     (and (= (figure-x cur) x)
-          (= (figure-y cur) y)
-          (or (eq? (figure-color cur) col)
-              (eq? col 'any))))
-   figures))
+  (for/first
+      ([cur figures]
+       #:when (and (= (figure-x cur) x)
+                   (= (figure-y cur) y)
+                   (or (eq? (figure-color cur) col)
+                       (eq? col 'any))))
+    cur))
 
 (define (remove-figure figures x y)
   (filter
@@ -135,11 +135,10 @@
    x y)))
 
 (define (find-figure-bytype figures type col)
-  (filter
-   (lambda (cur)
-     (and (eq? (figure-type cur) type)
+  (for/first ([cur figures]
+     #:when (and (eq? (figure-type cur) type)
           (eq? (figure-color cur) col)))
-   figures))
+    cur))
 
 (define (isblack? x y)
   (even?  (+ x y)))
@@ -166,10 +165,11 @@
 ;; Возможно ли сходить фигурой в x y без учета шахов и матов
 (define (placeble? figures fig x y)
   (cond
-    [(not (empty? (find-figure
-                   figures
-                   x y
-                   (figure-color fig)))) #f]
+    [(find-figure
+      figures
+      x y
+      (figure-color fig))
+     #f]
     ;; Пешка
     [(eq? (figure-type fig) 'pawn)
      ;;Белые
@@ -177,38 +177,36 @@
          (cond
            ;; Сходить пешкой прямо
            [(and (= y (add1 (figure-y fig))) (= x (figure-x fig)))
-            (empty? (append
-                     (find-figure figures x y 'any)))]
+            (not (find-figure figures x y 'any))]
            ;; Сходить пешкой прямо на 2
            [(and (= 1 (figure-y fig))
                  (= y (+ 2 (figure-y fig)))
                  (= x (figure-x fig)))
-            (empty? (append
-                     (find-figure figures x (sub1 y) 'any)
-                     (find-figure figures x y 'any)))]
+            (not (or
+                  (find-figure figures x (sub1 y) 'any)
+                  (find-figure figures x y 'any)))]
            ;; Сходить пешкой наискосок
            [(and (= y (add1 (figure-y fig)))
                  (or (= x (add1 (figure-x fig)))
                      (= x (sub1 (figure-x fig)))))
-            (not (empty? (find-figure figures x y 'black)))]
+            (find-figure figures x y 'black)]
            [else #f])
          (cond
            ;; Сходить пешкой прямо
            [(and (= y (sub1 (figure-y fig))) (= x (figure-x fig)))
-            (empty? (append
-                     (find-figure figures x y 'any)))]
+            (not (find-figure figures x y 'any))]
            ;; Сходить пешкой прямо на 2
            [(and (= 6 (figure-y fig))
                  (= y (- (figure-y fig) 2))
                  (= x (figure-x fig)))
-            (empty? (append
+            (not (or
                      (find-figure figures x (add1 y) 'any)
                      (find-figure figures x y 'any)))]
            ;; Сходить пешкой наискосок
            [(and (= y (sub1 (figure-y fig)))
                  (or (= x (add1 (figure-x fig)))
                      (= x (sub1 (figure-x fig)))))
-            (not (empty? (find-figure figures x y 'white)))]
+            (find-figure figures x y 'white)]
            [else #f])
          )]
     ;;Конь
@@ -221,7 +219,7 @@
              (abs (- y (figure-y fig)))))
        (if (= (abs (- x (figure-x fig))) 1)
            #t
-           (if (empty? (find-figure
+           (if (not (find-figure
                    figures
                    (+ x (signum (- (figure-x fig) x)))
                    (+ y (signum (- (figure-y fig) y)))
@@ -238,7 +236,7 @@
        (if (or (= (abs (- x (figure-x fig))) 1)
                (= (abs (- y (figure-y fig))) 1))
            #t
-           (if (empty? (find-figure
+           (if (not (find-figure
                    figures
                    (+ x (signum (- (figure-x fig) x)))
                    (+ y (signum (- (figure-y fig) y)))
@@ -257,7 +255,7 @@
        (if (or (= (abs (- x (figure-x fig))) 1)
                (= (abs (- y (figure-y fig))) 1))
            #t
-           (if (empty? (find-figure
+           (if (not (find-figure
                    figures
                    (+ x (signum (- (figure-x fig) x)))
                    (+ y (signum (- (figure-y fig) y)))
@@ -275,15 +273,15 @@
     [else #f]))
 
 (define (check? figures color)
-  (if (empty? (find-figure-bytype
+  (if (not (find-figure-bytype
                figures
                'king
                color))
       #f
-  (let ([king (car (find-figure-bytype
+  (let ([king (find-figure-bytype
                figures
                'king
-               color))])
+               color)])
     (ormap
      (lambda (cur)
        (and (eq? (figure-color cur) (invert-color (figure-color king)))
@@ -346,11 +344,11 @@
 ;; Рокировка без учета шахов
 (define (castling? figures caslfigs fig x y)
   (and (eq? (figure-type fig) 'king)
-       (not (empty? (find-figure
-                     caslfigs
-                     (figure-x fig)
-                     (figure-y fig)
-                     (figure-color fig))))
+       (find-figure
+        caslfigs
+        (figure-x fig)
+        (figure-y fig)
+        (figure-color fig))
        (= (figure-y fig) y)
        (= (abs (- (figure-x fig) x)) 2)
        (if (eq? (figure-color fig) 'white)
@@ -363,38 +361,38 @@
                                    caslfigs
                                    7 y
                                    (figure-color fig))])
-                        (and (not (empty? rook))
-                             (eq? (figure-type (car rook)) 'rook)
-                             (empty? (append
-                                      (find-figure
-                                       figures
-                                       6 y
-                                       3)
-                                      (find-figure
-                                       figures
-                                       5 y
-                                       'any))))))
+                        (and rook
+                             (eq? (figure-type rook) 'rook)
+                             (not (or
+                                   (find-figure
+                                    figures
+                                    6 y
+                                    3)
+                                   (find-figure
+                                    figures
+                                    5 y
+                                    'any))))))
                  ;; рокировка влево
                  (and (< x 4)
                       (let ([rook (find-figure
                                    caslfigs
                                    0 y
                                    (figure-color fig))])
-                        (and (not (empty? rook))
-                             (eq? (figure-type (car rook)) 'rook)
-                             (empty? (append
-                                      (find-figure
-                                       figures
-                                       3 y
-                                       'any)
-                                      (find-figure
-                                       figures
-                                       2 y
-                                       'any)
-                                      (find-figure
-                                       figures
-                                       1 y
-                                       'any))))))))
+                        (and rook
+                             (eq? (figure-type rook) 'rook)
+                             (not (or
+                                   (find-figure
+                                    figures
+                                    3 y
+                                    'any)
+                                   (find-figure
+                                    figures
+                                    2 y
+                                    'any)
+                                   (find-figure
+                                    figures
+                                    1 y
+                                    'any))))))))
            (and (= y 7)
                 (or
                  ;; черные
@@ -404,38 +402,38 @@
                                    caslfigs
                                    7 y
                                    (figure-color fig))])
-                        (and (not (empty? rook))
-                             (eq? (figure-type (car rook)) 'rook)
-                             (empty? (append
-                                      (find-figure
-                                       figures
-                                       6 y
-                                       'any)
-                                 (find-figure
-                                  figures
-                                  5 y
-                                  'any)
-                                 (find-figure
-                                  figures
-                                  4 y
-                                  'any))))))
+                        (and rook
+                             (eq? (figure-type rook) 'rook)
+                             (not (or
+                                   (find-figure
+                                    figures
+                                    6 y
+                                    'any)
+                                   (find-figure
+                                    figures
+                                    5 y
+                                    'any)
+                                   (find-figure
+                                    figures
+                                    4 y
+                                    'any))))))
                  ;; рокировка влево
                  (and (< x 4)
                       (let ([rook (find-figure
                                    caslfigs
                                    0 y
                                    (figure-color fig))])
-                        (and (not (empty? rook))
-                             (eq? (figure-type (car rook)) 'rook)
-                             (empty? (append
-                                      (find-figure
-                                       figures
-                                       2 y
-                                       'any)
-                                      (find-figure
-                                       figures
-                                       1 y
-                                       'any)))))))))))
+                        (and rook
+                             (eq? (figure-type rook) 'rook)
+                             (not (or
+                              (find-figure
+                               figures
+                               2 y
+                               'any)
+                              (find-figure
+                               figures
+                               1 y
+                               'any)))))))))))
 
 (define (castling-possible? figures caslfigs fig x y color)
   (and (castling? figures caslfigs fig x y)
@@ -459,10 +457,10 @@
             figures
             king
             x y)
-           (car (find-figure
+           (find-figure
                  figures
                  7 0
-                 'white))
+                 'white)
            5 0)
           ;; Влево
           (move-figure
@@ -470,10 +468,10 @@
             figures
             king
             x y)
-           (car (find-figure
-                 figures
-                 0 0
-                 'white))
+           (find-figure
+            figures
+            0 0
+            'white)
            3 0))
       ;; Черные
       (if (> x 3)
@@ -483,10 +481,10 @@
             figures
             king
             x y)
-           (car (find-figure
-                 figures
-                 7 7
-                 'black))
+           (find-figure
+            figures
+            7 7
+            'black)
            4 7)
           ;; Влево
           (move-figure
@@ -494,10 +492,10 @@
             figures
             king
             x y)
-           (car (find-figure
-                 figures
-                 0 7
-                 'black))
+           (find-figure
+            figures
+            0 7
+            'black)
            2 7))))
 
 ;; Обработчик ходов
@@ -508,21 +506,21 @@
                (get-cur-col ws)))
               (movable?
                (world-figures ws)
-               (car (find-figure
-                     (world-figures ws)
-                     (world-selx ws)
-                     (world-sely ws)
-                     (get-cur-col ws)))
+               (find-figure
+                (world-figures ws)
+                (world-selx ws)
+                (world-sely ws)
+                (get-cur-col ws))
                (pix->x x) (pix->y y)
                (get-cur-col ws))
               (enpassant? 
                (move-figure
                 (world-figures ws)
-                (car (find-figure
-                      (world-figures ws)
-                      (world-selx ws)
-                      (world-sely ws)
-                      (get-cur-col ws)))
+                (find-figure
+                 (world-figures ws)
+                 (world-selx ws)
+                 (world-sely ws)
+                 (get-cur-col ws))
                 (pix->x x)
                 (pix->y y))
                (get-cur-col ws)))
@@ -531,27 +529,27 @@
           -1 -1
           (move-figure
            (world-figures ws)
-           (car (find-figure
-                 (world-figures ws)
-                 (world-selx ws)
-                 (world-sely ws)
-                 (get-cur-col ws)))
+           (find-figure
+            (world-figures ws)
+            (world-selx ws)
+            (world-sely ws)
+            (get-cur-col ws))
            (pix->x x)
            (pix->y y))
           (remove-figure
            (remove-figure (world-caslfigs ws) 
                           (figure-x
-                           (car (find-figure
-                                 (world-figures ws)
-                                 (world-selx ws)
-                                 (world-sely ws)
-                                 (get-cur-col ws)))) 
+                           (find-figure
+                            (world-figures ws)
+                            (world-selx ws)
+                            (world-sely ws)
+                            (get-cur-col ws))) 
                           (figure-y
-                           (car (find-figure
-                                 (world-figures ws)
-                                 (world-selx ws)
-                                 (world-sely ws)
-                                 (get-cur-col ws)))))
+                           (find-figure
+                            (world-figures ws)
+                            (world-selx ws)
+                            (world-sely ws)
+                            (get-cur-col ws))))
            x y)
           (cons (world-figures ws)
                 (cons (world-figures ws) (world-prev-figures ws)))
@@ -563,11 +561,11 @@
                     (get-cur-col ws)))
               (movable?
                (world-figures ws)
-               (car (find-figure
-                     (world-figures ws)
-                     (world-selx ws)
-                     (world-sely ws)
-                     (get-cur-col ws)))
+               (find-figure
+                (world-figures ws)
+                (world-selx ws)
+                (world-sely ws)
+                (get-cur-col ws))
                (pix->x x) (pix->y y)
                (get-cur-col ws)))
          (world
@@ -575,27 +573,27 @@
           -1 -1
           (move-figure
            (world-figures ws)
-           (car (find-figure
-                 (world-figures ws)
-                 (world-selx ws)
-                 (world-sely ws)
-                 (get-cur-col ws)))
+           (find-figure
+            (world-figures ws)
+            (world-selx ws)
+            (world-sely ws)
+            (get-cur-col ws))
            (pix->x x)
            (pix->y y))
           (remove-figure
            (remove-figure (world-caslfigs ws) 
                           (figure-x
-                           (car (find-figure
-                                 (world-figures ws)
-                                 (world-selx ws)
-                                 (world-sely ws)
-                                 (get-cur-col ws)))) 
+                           (find-figure
+                            (world-figures ws)
+                            (world-selx ws)
+                            (world-sely ws)
+                            (get-cur-col ws))) 
                           (figure-y
-                           (car (find-figure
-                                 (world-figures ws)
-                                 (world-selx ws)
-                                 (world-sely ws)
-                                 (get-cur-col ws)))))
+                           (find-figure
+                            (world-figures ws)
+                            (world-selx ws)
+                            (world-sely ws)
+                            (get-cur-col ws))))
            x y)
           (cons (world-figures ws) (world-prev-figures ws))
           (cons (world-caslfigs ws) (world-prev-caslfigs ws)))]
@@ -605,11 +603,11 @@
               (castling-possible?
                (world-figures ws)
                (world-caslfigs ws)
-               (car (find-figure
-                     (world-figures ws)
-                     (world-selx ws)
-                     (world-sely ws)
-                     (get-cur-col ws)))
+               (find-figure
+                (world-figures ws)
+                (world-selx ws)
+                (world-sely ws)
+                (get-cur-col ws))
                (pix->x x) (pix->y y)
                (get-cur-col ws)))
          (world
@@ -617,39 +615,39 @@
           -1 -1
           (take-castling
            (world-figures ws)
-           (car (find-figure
-                (world-figures ws)
-                (world-selx ws)
-                (world-sely ws)
-                (get-cur-col ws)))
+           (find-figure
+            (world-figures ws)
+            (world-selx ws)
+            (world-sely ws)
+            (get-cur-col ws))
            (pix->x x) (pix->y y))
            (remove-figure (world-caslfigs ws) 
                           (figure-x
-                          (car (find-figure
-                                (world-figures ws)
-                                (world-selx ws)
-                                (world-sely ws)
-                                (get-cur-col ws))))
+                          (find-figure
+                           (world-figures ws)
+                           (world-selx ws)
+                           (world-sely ws)
+                           (get-cur-col ws)))
                           (figure-y
-                          (car (find-figure
-                                (world-figures ws)
-                                (world-selx ws)
-                                (world-sely ws)
-                                (get-cur-col ws)))))
+                          (find-figure
+                           (world-figures ws)
+                           (world-selx ws)
+                           (world-sely ws)
+                           (get-cur-col ws))))
            (cons (world-figures ws)
                  (world-prev-figures ws))
            (cons (world-figures ws)
                  (world-prev-caslfigs ws)))]
         [else (world
                (pix->x x) (pix->y y)
-               (if (empty? (find-figure
+               (if (not (find-figure
                             (world-figures ws)
                             (pix->x x)
                             (pix->y y)
                             (get-cur-col ws)))
                    (world-selx ws)
                    (pix->x x)) 
-               (if (empty? (find-figure
+               (if (not (find-figure
                             (world-figures ws)
                             (pix->x x)
                             (pix->y y)
@@ -705,28 +703,28 @@
             (if (or (= (world-selx ws) -1)
                     (= (world-sely ws) -1))
                 (world (pix->x x) (pix->y y)
-                       (if (empty? (find-figure
+                       (if (not (find-figure
                                     (world-figures ws)
                                     (pix->x x)
                                     (pix->y y)
                                     (get-cur-col ws)))
                            (world-selx ws)
-                           (figure-x (car (find-figure
-                                           (world-figures ws)
-                                           (pix->x x)
-                                           (pix->y y)
-                                           (get-cur-col ws)))))
-                       (if (empty? (find-figure
+                           (figure-x (find-figure
+                                      (world-figures ws)
+                                      (pix->x x)
+                                      (pix->y y)
+                                      (get-cur-col ws))))
+                       (if (not (find-figure
                                     (world-figures ws)
                                     (pix->x x)
                                     (pix->y y)
                                     (get-cur-col ws)))
                            (world-sely ws)
-                           (figure-y (car (find-figure
-                                           (world-figures ws)
-                                           (pix->x x)
-                                           (pix->y y)
-                                           (get-cur-col ws)))))
+                           (figure-y (find-figure
+                                      (world-figures ws)
+                                      (pix->x x)
+                                      (pix->y y)
+                                      (get-cur-col ws))))
                        (world-figures ws)
                        (world-caslfigs ws)
                        (world-prev-figures ws)
