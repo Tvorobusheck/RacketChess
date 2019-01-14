@@ -2,6 +2,7 @@
 
 ;;;; Шахматы на языке racket
 ;;;; Управление мышью
+;;;; Backspace для отмены хода
 ;;;;
 ;;;; В. В. Клименко, 2018
 
@@ -39,15 +40,15 @@
   #:transparent)
 
 ;;;; Типы(type) фигур
-;;;; 1 - пешка
-;;;; 2 - конь
-;;;; 3 - слон
-;;;; 4 - ладья
-;;;; 5 - ферзь
-;;;; 6 - король
+;;;; pawn - пешка
+;;;; knight - конь
+;;;; bishop - слон
+;;;; rook - ладья
+;;;; queen - ферзь
+;;;; king - король
 
-;;;; 0 - белый цвет
-;;;; 1 - черный цвет
+;;;; white - белый цвет
+;;;; black - черный цвет
 (struct figure
   (x y ; координаты
      color ; цвет
@@ -57,63 +58,63 @@
 ;;; Исходное состояние (ракета в центре в состоянии покоя).
 (define figures0
   (append
-   (map (lambda (pos) (figure pos 1 0 1)) (range 8))
-   (map (lambda (pos) (figure pos 6 1 1)) (range 8))
+   (map (lambda (pos) (figure pos 1 'white 'pawn)) (range 8))
+   (map (lambda (pos) (figure pos 6 'black 'pawn)) (range 8))
    (list
-    (figure 1 0 0 2)
-    (figure 6 0 0 2)
-    (figure 1 7 1 2)
-    (figure 6 7 1 2))
+    (figure 1 0 'white 'knight)
+    (figure 6 0 'white 'knight)
+    (figure 1 7 'black 'knight)
+    (figure 6 7 'black 'knight))
    (list
-    (figure 2 0 0 3)
-    (figure 5 0 0 3)
-    (figure 2 7 1 3)
-    (figure 5 7 1 3))
+    (figure 2 0 'white 'bishop)
+    (figure 5 0 'white 'bishop)
+    (figure 2 7 'black 'bishop)
+    (figure 5 7 'black 'bishop))
    (list
-    (figure 0 0 0 4)
-    (figure 7 0 0 4)
-    (figure 0 7 1 4)
-    (figure 7 7 1 4))
+    (figure 0 0 'white 'rook)
+    (figure 7 0 'white 'rook)
+    (figure 0 7 'black 'rook)
+    (figure 7 7 'black 'rook))
    (list
-    (figure 3 0 0 5)
-    (figure 4 7 1 5))
+    (figure 3 0 'white 'queen)
+    (figure 4 7 'black 'queen))
    (list
-    (figure 4 0 0 6)
-    (figure 3 7 1 6))))
+    (figure 4 0 'white 'king)
+    (figure 3 7 'black 'king))))
 
 ;; Расстановка для тестов
 (define figuresTEST  
  (list
-  (figure 0 0 0 4)
-  (figure 7 0 0 4)
-  (figure 0 7 1 4)
-  (figure 7 7 1 4)
-  (figure 4 0 0 6)
-  (figure 3 7 1 6)
-  (figure 2 1 0 1)
-  (figure 5 6 1 1)))
+  (figure 0 0 'white 'rook)
+  (figure 7 0 'white 'rook)
+  (figure 0 7 'black 'rook)
+  (figure 7 7 'black 'rook)
+  (figure 4 0 'white 'king)
+  (figure 3 7 'black 'king)
+  (figure 2 1 'white 'pawn)
+  (figure 5 6 'black 'pawn)))
 
 (define caslfigs0
   (append
    (list
-    (figure 0 0 0 4)
-    (figure 7 0 0 4)
-    (figure 0 7 1 4)
-    (figure 7 7 1 4))
+    (figure 0 0 'white 'rook)
+    (figure 7 0 'white 'rook)
+    (figure 0 7 'black 'rook)
+    (figure 7 7 'black 'rook))
    (list
-    (figure 4 0 0 6)
-    (figure 3 7 1 6))))
+    (figure 4 0 'white 'king)
+    (figure 3 7 'black 'king))))
 
 (define world0
-  (world -1 -1 -1 -1 figuresTEST caslfigs0 '() '()))
+  (world -1 -1 -1 -1 figures0 caslfigs0 '() '()))
 
 (define (find-figure figures x y col)
   (filter
    (lambda (cur)
      (and (= (figure-x cur) x)
           (= (figure-y cur) y)
-          (or (= (figure-color cur) col)
-              (= col 3))))
+          (or (eq? (figure-color cur) col)
+              (eq? col 'any))))
    figures))
 
 (define (remove-figure figures x y)
@@ -136,8 +137,8 @@
 (define (find-figure-bytype figures type col)
   (filter
    (lambda (cur)
-     (and (= (figure-type cur) type)
-          (= (figure-color cur) col)))
+     (and (eq? (figure-type cur) type)
+          (eq? (figure-color cur) col)))
    figures))
 
 (define (isblack? x y)
@@ -151,13 +152,17 @@
     ))
 
 (define (invert-color color)
-  (if (= color 1)
-      0
-      1))
+  (if (eq? color 'white)
+      'black
+      'white))
 
 (define (get-cur-col ws)
-  (modulo (length (world-prev-figures ws)) 2))
+  (if (zero? (modulo (length (world-prev-figures ws)) 2))
+      'white
+      'black))
 
+(define (white? col)
+  (eq? col 'white))
 ;; Возможно ли сходить фигурой в x y без учета шахов и матов
 (define (placeble? figures fig x y)
   (cond
@@ -166,56 +171,52 @@
                    x y
                    (figure-color fig)))) #f]
     ;; Пешка
-    [(= (figure-type fig) 1)
+    [(eq? (figure-type fig) 'pawn)
      ;;Белые
-     (if (even? (figure-color fig))
+     (if (white? (figure-color fig))
          (cond
            ;; Сходить пешкой прямо
            [(and (= y (add1 (figure-y fig))) (= x (figure-x fig)))
             (empty? (append
-                     (find-figure figures x y 0)
-                     (find-figure figures x y 1)))]
+                     (find-figure figures x y 'any)))]
            ;; Сходить пешкой прямо на 2
            [(and (= 1 (figure-y fig))
                  (= y (+ 2 (figure-y fig)))
                  (= x (figure-x fig)))
             (empty? (append
-                     (find-figure figures x (sub1 y) 3)
-                     (find-figure figures x y 0)
-                     (find-figure figures x y 1)))]
+                     (find-figure figures x (sub1 y) 'any)
+                     (find-figure figures x y 'any)))]
            ;; Сходить пешкой наискосок
            [(and (= y (add1 (figure-y fig)))
                  (or (= x (add1 (figure-x fig)))
                      (= x (sub1 (figure-x fig)))))
-            (not (empty? (find-figure figures x y 1)))]
+            (not (empty? (find-figure figures x y 'black)))]
            [else #f])
          (cond
            ;; Сходить пешкой прямо
            [(and (= y (sub1 (figure-y fig))) (= x (figure-x fig)))
             (empty? (append
-                     (find-figure figures x y 0)
-                     (find-figure figures x y 1)))]
+                     (find-figure figures x y 'any)))]
            ;; Сходить пешкой прямо на 2
            [(and (= 6 (figure-y fig))
                  (= y (- (figure-y fig) 2))
                  (= x (figure-x fig)))
             (empty? (append
-                     (find-figure figures x (add1 y) 3)
-                     (find-figure figures x y 0)
-                     (find-figure figures x y 1)))]
+                     (find-figure figures x (add1 y) 'any)
+                     (find-figure figures x y 'any)))]
            ;; Сходить пешкой наискосок
            [(and (= y (sub1 (figure-y fig)))
                  (or (= x (add1 (figure-x fig)))
                      (= x (sub1 (figure-x fig)))))
-            (not (empty? (find-figure figures x y 0)))]
+            (not (empty? (find-figure figures x y 'white)))]
            [else #f])
          )]
     ;;Конь
-    [(= (figure-type fig) 2)
+    [(eq? (figure-type fig) 'knight)
      (= 5 (+ (* (- x (figure-x fig)) (- x (figure-x fig)))
              (* (- y (figure-y fig)) (- y (figure-y fig)))))]
     ;;Слон
-    [(and (= (figure-type fig) 3)
+    [(and (eq? (figure-type fig) 'bishop)
           (= (abs (- x (figure-x fig)))
              (abs (- y (figure-y fig)))))
        (if (= (abs (- x (figure-x fig))) 1)
@@ -231,7 +232,7 @@
                           (+ y (signum (- (figure-y fig) y))))
                #f))]
     ;;Ладья
-    [(and (= (figure-type fig) 4)
+    [(and (eq? (figure-type fig) 'rook)
           (or (= x (figure-x fig))
               (= y (figure-y fig))))
        (if (or (= (abs (- x (figure-x fig))) 1)
@@ -248,7 +249,7 @@
                           (+ y (signum (- (figure-y fig) y))))
                #f))]
     ;;Ферзь
-    [(and (= (figure-type fig) 5)
+    [(and (eq? (figure-type fig) 'queen)
           (or (= (abs (- x (figure-x fig)))
                  (abs (- y (figure-y fig))))
               (or (= x (figure-x fig))
@@ -267,7 +268,7 @@
                           (+ y (signum (- (figure-y fig) y))))
                #f))]
     ;;Король
-    [(and (= (figure-type fig) 6)
+    [(and (eq? (figure-type fig) 'king)
           (<= (abs (- x (figure-x fig))) 1)
           (<= (abs (- y (figure-y fig))) 1))
        #t]
@@ -276,27 +277,28 @@
 (define (check? figures color)
   (if (empty? (find-figure-bytype
                figures
-               6
+               'king
                color))
       #f
   (let ([king (car (find-figure-bytype
                figures
-               6
+               'king
                color))])
     (ormap
      (lambda (cur)
-       (and (= (figure-color cur) (invert-color (figure-color king)))
+       (and (eq? (figure-color cur) (invert-color (figure-color king)))
             (placeble? figures cur (figure-x king) (figure-y king))))
      figures))))
 
 (define (movable? figures fig x y color)
-  (and (= color (figure-color fig))
+  (and (eq? color (figure-color fig))
        (not (check? (move-figure figures fig x y) color))
        (placeble? figures fig x y)))
 
 (define (pat? figures color)
   (not (for*/first ([fig
-                     (filter (lambda (fig) (= (figure-color fig) color))
+                     (filter (lambda (fig)
+                               (eq? (figure-color fig) color))
                                figures)]
               [x (range 8)]
               [y (range 8)]
@@ -311,28 +313,28 @@
 (define (enpassant? figures color)
   (not (empty? (filter
                 (lambda (cur)
-                  (and (= (figure-color cur) color)
-                       (= (figure-type cur) 1)
+                  (and (eq? (figure-color cur) color)
+                       (eq? (figure-type cur) 'pawn)
                        (or (and
-                            (= 0 (figure-color cur))
-                            (= 7 (figure-y cur)))
+                            (eq? 'white (figure-color cur))
+                            (eq? 7 (figure-y cur)))
                            (and
-                            (= 1 (figure-color cur))
-                            (= 0 (figure-y cur))))))
+                            (eq? 'black (figure-color cur))
+                            (eq? 0 (figure-y cur))))))
                 figures))))
 
 ;; Превратить крайнюю пешку в ферзя
 (define (turn-enpassant figures color type)
   (let ([pawn (car (filter
                 (lambda (cur)
-                  (and (= (figure-color cur) color)
-                       (= (figure-type cur) 1)
+                  (and (eq? (figure-color cur) color)
+                       (eq? (figure-type cur) 'pawn)
                        (or (and
-                            (= 0 (figure-color cur))
-                            (= 7 (figure-y cur)))
+                            (eq? 'white (figure-color cur))
+                            (eq? 7 (figure-y cur)))
                            (and
-                            (= 1 (figure-color cur))
-                            (= 0 (figure-y cur))))))
+                            (eq? 'black (figure-color cur))
+                            (eq? 0 (figure-y cur))))))
                 figures))])
     (add-figure
      (figure (figure-x pawn)
@@ -343,7 +345,7 @@
 
 ;; Рокировка без учета шахов
 (define (castling? figures caslfigs fig x y)
-  (and (= (figure-type fig) 6)
+  (and (eq? (figure-type fig) 'king)
        (not (empty? (find-figure
                      caslfigs
                      (figure-x fig)
@@ -351,7 +353,7 @@
                      (figure-color fig))))
        (= (figure-y fig) y)
        (= (abs (- (figure-x fig) x)) 2)
-       (if (= (figure-color fig) 0)
+       (if (eq? (figure-color fig) 'white)
            (and (= y 0)
                 (or
                  ;; белые
@@ -362,16 +364,16 @@
                                    7 y
                                    (figure-color fig))])
                         (and (not (empty? rook))
-                             (= (figure-type (car rook)) 4)
+                             (eq? (figure-type (car rook)) 'rook)
                              (empty? (append
                                       (find-figure
                                        figures
                                        6 y
                                        3)
                                       (find-figure
-                                  figures
-                                  5 y
-                                  3))))))
+                                       figures
+                                       5 y
+                                       'any))))))
                  ;; рокировка влево
                  (and (< x 4)
                       (let ([rook (find-figure
@@ -379,20 +381,20 @@
                                    0 y
                                    (figure-color fig))])
                         (and (not (empty? rook))
-                             (= (figure-type (car rook)) 4)
+                             (eq? (figure-type (car rook)) 'rook)
                              (empty? (append
                                       (find-figure
                                        figures
                                        3 y
-                                       3)
+                                       'any)
                                       (find-figure
                                        figures
                                        2 y
-                                       3)
+                                       'any)
                                       (find-figure
                                        figures
                                        1 y
-                                       3))))))))
+                                       'any))))))))
            (and (= y 7)
                 (or
                  ;; черные
@@ -403,20 +405,20 @@
                                    7 y
                                    (figure-color fig))])
                         (and (not (empty? rook))
-                             (= (figure-type (car rook)) 4)
+                             (eq? (figure-type (car rook)) 'rook)
                              (empty? (append
                                       (find-figure
                                        figures
                                        6 y
-                                       3)
+                                       'any)
                                  (find-figure
                                   figures
                                   5 y
-                                  3)
+                                  'any)
                                  (find-figure
                                   figures
                                   4 y
-                                  3))))))
+                                  'any))))))
                  ;; рокировка влево
                  (and (< x 4)
                       (let ([rook (find-figure
@@ -424,16 +426,16 @@
                                    0 y
                                    (figure-color fig))])
                         (and (not (empty? rook))
-                             (= (figure-type (car rook)) 4)
+                             (eq? (figure-type (car rook)) 'rook)
                              (empty? (append
                                       (find-figure
                                        figures
                                        2 y
-                                       3)
+                                       'any)
                                       (find-figure
                                        figures
                                        1 y
-                                       3)))))))))))
+                                       'any)))))))))))
 
 (define (castling-possible? figures caslfigs fig x y color)
   (and (castling? figures caslfigs fig x y)
@@ -448,7 +450,7 @@
        (not (check? (move-figure figures fig x y) color))))
 
 (define (take-castling figures king x y)
-  (if (zero? (figure-color king))
+  (if (white? (figure-color king))
       ;; Белые
       (if (> x 4)
           ;; Вправо
@@ -460,7 +462,7 @@
            (car (find-figure
                  figures
                  7 0
-                 0))
+                 'white))
            5 0)
           ;; Влево
           (move-figure
@@ -471,7 +473,7 @@
            (car (find-figure
                  figures
                  0 0
-                 0))
+                 'white))
            3 0))
       ;; Черные
       (if (> x 3)
@@ -484,7 +486,7 @@
            (car (find-figure
                  figures
                  7 7
-                 1))
+                 'black))
            4 7)
           ;; Влево
           (move-figure
@@ -495,7 +497,7 @@
            (car (find-figure
                  figures
                  0 7
-                 1))
+                 'black))
            2 7))))
 
 ;; Обработчик ходов
@@ -670,25 +672,25 @@
                                 (+ (/ height 2) (* 2 sq-size)))
                             (turn-enpassant (world-figures ws)
                                             (get-cur-col ws)
-                                            5)]
+                                            'queen)]
                            [(<= (/ height 2)
                                 y
                                 (+ (/ height 2) sq-size))
                             (turn-enpassant (world-figures ws)
                                             (get-cur-col ws)
-                                            4)]
+                                            'rook)]
                            [(>= (/ height 2)
                                 y
                                 (- (/ height 2) sq-size))
                             (turn-enpassant (world-figures ws)
                                             (get-cur-col ws)
-                                            3)]
+                                            'bishop)]
                            [(>= (- (/ height 2) sq-size)
                                 y
                                 (- (/ height 2) (* 2 sq-size)))
                             (turn-enpassant (world-figures ws)
                                             (get-cur-col ws)
-                                            2)]
+                                            'knight)]
                            [else empty])])
             (if (empty? figures)
                 ws
@@ -785,34 +787,34 @@
   (- height (+ (/ sq-size 2) (* sq-size y))))
 
 (define (draw-figure fig)
-  (if (zero? (figure-color fig))
+  (if (white? (figure-color fig))
       (cond
-        [(= (figure-type fig) 1)
+        [(eq? (figure-type fig) 'pawn)
          (bitmap/file "images/white/Chess_plt60.png")]
-        [(= (figure-type fig) 2)
+        [(eq? (figure-type fig) 'knight)
          (bitmap/file "images/white/Chess_nlt60.png")]
-        [(= (figure-type fig) 3)
+        [(eq? (figure-type fig) 'bishop)
          (bitmap/file "images/white/Chess_blt60.png")]
-        [(= (figure-type fig) 4)
+        [(eq? (figure-type fig) 'rook)
          (bitmap/file "images/white/Chess_rlt60.png")]
-        [(= (figure-type fig) 5)
+        [(eq? (figure-type fig) 'queen)
          (bitmap/file "images/white/Chess_qlt60.png")]
-        [(= (figure-type fig) 6)
+        [(eq? (figure-type fig) 'king)
          (bitmap/file "images/white/Chess_klt60.png")]
         [else (rectangle sq-size sq-size 'solid 'pink)]
         )
       (cond
-        [(= (figure-type fig) 1)
+        [(eq? (figure-type fig) 'pawn)
          (bitmap/file "images/black/Chess_pdt60.png")]
-        [(= (figure-type fig) 2)
+        [(eq? (figure-type fig) 'knight)
          (bitmap/file "images/black/Chess_ndt60.png")]
-        [(= (figure-type fig) 3)
+        [(eq? (figure-type fig) 'bishop)
          (bitmap/file "images/black/Chess_bdt60.png")]
-        [(= (figure-type fig) 4)
+        [(eq? (figure-type fig) 'rook)
          (bitmap/file "images/black/Chess_rdt60.png")]
-        [(= (figure-type fig) 5)
+        [(eq? (figure-type fig) 'queen)
          (bitmap/file "images/black/Chess_qdt60.png")]
-        [(= (figure-type fig) 6)
+        [(eq? (figure-type fig) 'king)
          (bitmap/file "images/black/Chess_kdt60.png")]
         [else (rectangle sq-size sq-size 'solid 'red)])))    
 
@@ -866,7 +868,7 @@
        (world-figures ws)
        (get-cur-col ws))
       (draw-message
-       (if (zero? (get-cur-col ws))
+       (if (white? (get-cur-col ws))
            "Black win!"
            "White win!"))]
      [(pat?
